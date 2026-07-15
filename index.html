@@ -134,7 +134,15 @@
     display:flex; align-items:center; justify-content:center;
   }
   .card-art svg{ width:56%; height:56%; }
-  .card-photo{ width:100%; height:100%; object-fit:cover; }
+  .card-photo{ width:100%; height:100%; object-fit:cover; cursor:pointer; }
+  .photo-dots{
+    position:absolute; bottom:8px; left:0; right:0; display:flex; justify-content:center; gap:5px; z-index:2;
+  }
+  .photo-dot{
+    width:6px; height:6px; border-radius:50%; background:rgba(255,255,255,.4); cursor:pointer;
+    border:1px solid rgba(0,0,0,.3); transition:.15s ease; padding:0;
+  }
+  .photo-dot.active{ background:var(--accent); width:16px; border-radius:4px; }
   .card-tag{
     position:absolute; top:10px; left:10px; font-family:var(--mono); font-size:10.5px;
     background:rgba(0,0,0,.45); border:1px solid var(--line); color:var(--text-dim);
@@ -163,6 +171,7 @@
   .card-meta span b{ color:var(--text); font-weight:500; }
   .card-foot{ margin-top:auto; display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .price{ font-family:var(--mono); font-weight:700; font-size:17px; color:var(--accent-2); }
+  .price-inquire{ font-family:var(--mono); font-weight:600; font-size:15px; color:var(--text-dim); font-style:italic; }
   .add-btn{
     font-family:var(--body); font-weight:600; font-size:13px;
     background:var(--accent); color:#16151a; border:none; border-radius:9px;
@@ -419,6 +428,10 @@ async function loadProductsFromPitaLab() {
     PRODUCTS = stockItems
       .map(item => {
         const colorInfo = getColorInfo(item.usedFilaments);
+        // compatibilidade com peças antigas que só tinham uma foto (photoUrl)
+        const photos = (item.photoUrls && item.photoUrls.length > 0)
+          ? item.photoUrls
+          : (item.photoUrl ? [item.photoUrl] : []);
         return {
           id: item.id,
           name: item.name,
@@ -426,7 +439,7 @@ async function loadProductsFromPitaLab() {
           price: item.unitPrice || 0,
           material: item.material || '',
           icon: 'keychain', // usado só se não houver foto cadastrada
-          image: item.photoUrl || null,
+          photos,
           stock: item.printed - item.sold,
           customizavel: !!item.customizavel,
           colorLabel: colorInfo.label,
@@ -496,7 +509,13 @@ function renderGrid(){
         ${p.colorido
           ? `<span class="color-dot color-dot-rainbow" title="Colorido"></span>`
           : (p.colorHex ? `<span class="color-dot" style="background:${p.colorHex}" title="${p.colorLabel}"></span>` : '')}
-        ${p.image ? `<img src="${p.image}" alt="${p.name}" class="card-photo">` : ICONS[p.icon]}
+        ${p.photos.length > 0
+          ? `<img id="photo-${p.id}" src="${p.photos[0]}" alt="${p.name}" class="card-photo" data-pid="${p.id}" data-idx="0">`
+          : ICONS[p.icon]}
+        ${p.photos.length > 1 ? `
+          <div class="photo-dots" data-pid="${p.id}">
+            ${p.photos.map((_, i) => `<button class="photo-dot ${i===0?'active':''}" data-pid="${p.id}" data-idx="${i}"></button>`).join('')}
+          </div>` : ''}
       </div>
       <div class="card-body">
         <p class="card-name">${p.name}</p>
@@ -505,7 +524,7 @@ function renderGrid(){
           <span class="${p.stock>0 ? 'stock-ok' : 'stock-out'}">${p.stock>0 ? p.stock+' disponíveis' : 'Sem estoque'}</span>
         </div>
         <div class="card-foot">
-          <span class="price">${fmtBRL(p.price)}</span>
+          <span class="${p.stock>0 ? 'price' : 'price-inquire'}">${p.stock>0 ? fmtBRL(p.price) : 'Consulte'}</span>
           ${p.stock>0
             ? `<button class="add-btn" data-id="${p.id}">Adicionar</button>`
             : `<button class="order-btn" data-id="${p.id}">Encomendar</button>`}
@@ -524,6 +543,31 @@ function renderGrid(){
   });
   el.querySelectorAll('.custom-tag').forEach(btn=>{
     btn.addEventListener('click', ()=>{ openWhatsAppOrder(btn.dataset.id, true); });
+  });
+  // Galeria: clicar na foto avança pra próxima; clicar numa bolinha vai direto pra ela
+  el.querySelectorAll('.card-photo').forEach(img=>{
+    img.addEventListener('click', ()=>{
+      const p = PRODUCTS.find(x => x.id === img.dataset.pid);
+      if (!p || p.photos.length < 2) return;
+      const current = parseInt(img.dataset.idx, 10) || 0;
+      setCardPhoto(p.id, (current + 1) % p.photos.length);
+    });
+  });
+  el.querySelectorAll('.photo-dot').forEach(dot=>{
+    dot.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      setCardPhoto(dot.dataset.pid, parseInt(dot.dataset.idx, 10));
+    });
+  });
+}
+
+function setCardPhoto(pid, idx){
+  const p = PRODUCTS.find(x => x.id === pid);
+  if (!p || !p.photos[idx]) return;
+  const img = document.getElementById(`photo-${pid}`);
+  if (img) { img.src = p.photos[idx]; img.dataset.idx = idx; }
+  document.querySelectorAll(`.photo-dot[data-pid="${pid}"]`).forEach(dot=>{
+    dot.classList.toggle('active', parseInt(dot.dataset.idx, 10) === idx);
   });
 }
 
