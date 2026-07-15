@@ -499,6 +499,13 @@ function renderFilters(){
   });
 }
 
+// Extrai a posição de foco embutida na URL (?pos=X,Y), usada em GIFs que não
+// passam por recorte. Sem esse parâmetro, cai no centro (padrão).
+function getPhotoStyle(url){
+  const match = (url || '').match(/[?&]pos=([\d.]+),([\d.]+)/);
+  return match ? `${match[1]}% ${match[2]}%` : '50% 50%';
+}
+
 function renderGrid(){
   const el = document.getElementById('grid');
   const list = PRODUCTS.filter(p => activeCategory==='Todos' || p.category===activeCategory);
@@ -510,7 +517,7 @@ function renderGrid(){
           ? `<span class="color-dot color-dot-rainbow" title="Colorido"></span>`
           : (p.colorHex ? `<span class="color-dot" style="background:${p.colorHex}" title="${p.colorLabel}"></span>` : '')}
         ${p.photos.length > 0
-          ? `<img id="photo-${p.id}" src="${p.photos[0]}" alt="${p.name}" class="card-photo" data-pid="${p.id}" data-idx="0">`
+          ? `<img id="photo-${p.id}" src="${p.photos[0]}" alt="${p.name}" class="card-photo" data-pid="${p.id}" data-idx="0" style="object-position:${getPhotoStyle(p.photos[0])}">`
           : ICONS[p.icon]}
         ${p.photos.length > 1 ? `
           <div class="photo-dots" data-pid="${p.id}">
@@ -565,7 +572,7 @@ function setCardPhoto(pid, idx){
   const p = PRODUCTS.find(x => x.id === pid);
   if (!p || !p.photos[idx]) return;
   const img = document.getElementById(`photo-${pid}`);
-  if (img) { img.src = p.photos[idx]; img.dataset.idx = idx; }
+  if (img) { img.src = p.photos[idx]; img.dataset.idx = idx; img.style.objectPosition = getPhotoStyle(p.photos[idx]); }
   document.querySelectorAll(`.photo-dot[data-pid="${pid}"]`).forEach(dot=>{
     dot.classList.toggle('active', parseInt(dot.dataset.idx, 10) === idx);
   });
